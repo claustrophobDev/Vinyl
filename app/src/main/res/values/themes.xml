@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- темный фон сразу, чтобы при запуске не мигало белым -->
+    <style name="Base.Theme.Vinyl" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/vinyl_background</item>
+        <item name="android:colorBackground">@color/vinyl_background</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+    </style>
+
+    <style name="Theme.Vinyl" parent="Base.Theme.Vinyl" />
+</resources>

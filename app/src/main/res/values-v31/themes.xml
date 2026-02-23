@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.Vinyl" parent="Base.Theme.Vinyl">
+        <item name="android:windowSplashScreenBackground">@color/vinyl_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_mark</item>
+    </style>
+</resources>
