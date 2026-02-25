@@ -129,7 +129,7 @@ class VinylVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 val state = app.storage.get()
                 val srv = app.pickServer(state)
                     ?: throw IllegalStateException("Сначала добавьте сервер (ключ или ссылку на подписку)")
-                val config = SingBoxConfig.build(LinkParser.toOutbound(srv.link), state.routing, state.settings, packageName)
+                val config = SingBoxConfig.build(LinkParser.toProxy(srv.link), state.routing, state.settings, packageName)
                 if (attempt.get() != id) return@launch
 
                 setupLibbox()
@@ -145,6 +145,7 @@ class VinylVpnService : VpnService(), PlatformInterface, CommandServerHandler {
                 VpnState.connectedAt.value = SystemClock.elapsedRealtime()
                 VpnState.status.value = VpnStatus.CONNECTED
                 updateNotification(srv.flag + " " + srv.name)
+                VinylTileService.refresh(this@VinylVpnService)
                 VpnLog.info("Подключено: ${srv.name} (${srv.protocol.label})")
                 startStats()
             } catch (e: Throwable) {
@@ -187,6 +188,7 @@ class VinylVpnService : VpnService(), PlatformInterface, CommandServerHandler {
         VpnState.connectedAt.value = 0L
         VpnState.serverName.value = null
         if (VpnState.status.value != VpnStatus.ERROR) VpnState.status.value = VpnStatus.IDLE
+        VinylTileService.refresh(this)
     }
 
     @Synchronized

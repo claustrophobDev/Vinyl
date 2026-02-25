@@ -15,3 +15,9 @@ local.properties
 *.aab
 *.hprof
 _backup*
+
+# ключ подписи и пароли в гит не кладем
+keystore.properties
+keystore/
+*.jks
+*.keystore

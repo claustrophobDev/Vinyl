@@ -24,9 +24,9 @@ class ConfigTest {
 
     @Test
     fun newConfigFormat() {
-        val outbound = LinkParser.toOutbound("trojan://pw@t.example.com:443#T")
+        val proxy = LinkParser.toProxy("trojan://pw@t.example.com:443#T")
         val routing = Routing(directRuSites = true, directDomains = listOf("https://Kinopoisk.ru/path"))
-        val config = JSONObject(SingBoxConfig.build(outbound, routing, Settings(dns = RemoteDns.GOOGLE), pkg))
+        val config = JSONObject(SingBoxConfig.build(proxy, routing, Settings(dns = RemoteDns.GOOGLE), pkg))
 
         // dns только в новом формате
         val dns = config.getJSONObject("dns")
@@ -65,10 +65,35 @@ class ConfigTest {
 
     @Test
     fun ipv6On() {
-        val out = LinkParser.toOutbound("trojan://pw@t.example.com:443#T")
-        val config = JSONObject(SingBoxConfig.build(out, Routing(), Settings(ipv6 = true), pkg))
+        val proxy = LinkParser.toProxy("trojan://pw@t.example.com:443#T")
+        val config = JSONObject(SingBoxConfig.build(proxy, Routing(), Settings(ipv6 = true), pkg))
         val rules = config.getJSONObject("route").getJSONArray("rules").objects()
         assertFalse(rules.any { it.optInt("ip_version") == 6 })
+    }
+
+    @Test
+    fun wireguardGoesToEndpoints() {
+        val key = "0123456789abcdef0123456789abcdef"
+        val b64 = java.util.Base64.getEncoder().encodeToString(key.toByteArray())
+        val link = "wireguard://$b64@1.2.3.4:51820?publickey=$b64&address=10.0.0.2/32&reserved=1,2,3&mtu=1408#WG"
+        val proxy = LinkParser.toProxy(link)
+        assertTrue(proxy.isEndpoint)
+
+        val config = JSONObject(SingBoxConfig.build(proxy, Routing(), Settings(), pkg))
+        // wireguard лежит в endpoints, а не в outbounds
+        val endpoints = config.getJSONArray("endpoints").objects()
+        assertEquals(1, endpoints.size)
+        val ep = endpoints[0]
+        assertEquals("wireguard", ep.getString("type"))
+        assertEquals("proxy", ep.getString("tag"))
+        val peer = ep.getJSONArray("peers").getJSONObject(0)
+        assertEquals("1.2.3.4", peer.getString("address"))
+        assertEquals(51820, peer.getInt("port"))
+        assertEquals(listOf(1, 2, 3), peer.getJSONArray("reserved").let { (0 until it.length()).map { i -> it.getInt(i) } })
+
+        val outTypes = config.getJSONArray("outbounds").objects().map { it.getString("type") }
+        assertEquals(listOf("direct"), outTypes)
+        assertEquals("proxy", config.getJSONObject("route").getString("final"))
     }
 
     @Test

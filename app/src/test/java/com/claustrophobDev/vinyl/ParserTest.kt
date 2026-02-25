@@ -129,6 +129,28 @@ class ParserTest {
     }
 
     @Test
+    fun wireguard() {
+        val key = b64("0123456789abcdef0123456789abcdef")
+        val link = "wireguard://$key@5.6.7.8:51820?publickey=$key&presharedkey=$key&address=10.0.0.5/32,fd00::5/128&reserved=1,2,3&mtu=1280#🇸🇪 WG"
+        val server = LinkParser.toServer(link, null)!!
+        assertEquals(Protocol.WIREGUARD, server.protocol)
+        assertEquals("🇸🇪", server.flag)
+        assertNull(server.unsupported)
+
+        val proxy = LinkParser.toProxy(link)
+        assertTrue(proxy.isEndpoint)
+        val ep = proxy.json
+        assertEquals("wireguard", ep.getString("type"))
+        assertEquals(1280, ep.getInt("mtu"))
+        assertEquals(key, ep.getString("private_key"))
+        assertEquals(2, ep.getJSONArray("address").length())
+        val peer = ep.getJSONArray("peers").getJSONObject(0)
+        assertEquals(key, peer.getString("public_key"))
+        assertEquals(key, peer.getString("pre_shared_key"))
+        assertTrue(peer.getJSONArray("allowed_ips").getString(0) == "0.0.0.0/0")
+    }
+
+    @Test
     fun xhttpNotSupported() {
         val link = "vless://id@x.com:443?type=xhttp&security=tls#X"
         val server = LinkParser.toServer(link, null)

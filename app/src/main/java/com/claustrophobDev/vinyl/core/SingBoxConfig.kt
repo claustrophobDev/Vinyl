@@ -25,7 +25,7 @@ object SingBoxConfig {
         "ru.sovcomcard.halva.v1", "ru.ozon.fintech.finance", "ru.nspk.mirpay", "ru.rostel"
     )
 
-    fun build(outbound: JSONObject, routing: Routing, settings: Settings, myPackage: String): String {
+    fun build(proxy: Proxy, routing: Routing, settings: Settings, myPackage: String): String {
         val direct = ArrayList<String>()
         for (d in routing.directDomains) {
             cleanDomain(d)?.let { direct.add(it) }
@@ -79,7 +79,14 @@ object SingBoxConfig {
         config.put("log", JSONObject().put("level", "warn").put("timestamp", false))
         config.put("dns", dns)
         config.put("inbounds", JSONArray().put(tun(routing, myPackage)))
-        config.put("outbounds", JSONArray().put(outbound).put(JSONObject().put("type", "direct").put("tag", DIRECT)))
+        val directOut = JSONObject().put("type", "direct").put("tag", DIRECT)
+        if (proxy.isEndpoint) {
+            // wireguard идет в endpoints, тег все тот же proxy, так что маршруты не меняются
+            config.put("endpoints", JSONArray().put(proxy.json))
+            config.put("outbounds", JSONArray().put(directOut))
+        } else {
+            config.put("outbounds", JSONArray().put(proxy.json).put(directOut))
+        }
         config.put("route", route)
         return config.toString()
     }

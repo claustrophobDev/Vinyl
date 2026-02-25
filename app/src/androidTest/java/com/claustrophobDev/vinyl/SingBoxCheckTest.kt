@@ -43,7 +43,8 @@ class SingBoxCheckTest {
         "ss://2022-blake3-aes-128-gcm:YWJjZGVmZ2hpamtsbW5vcA%3D%3D@h.example.com:443#SS2022",
         "hy2://pass@hy.example.com:443?obfs=salamander&obfs-password=ob&sni=hy.example.com#Hysteria2",
         "hy2://pass@hy.example.com:443?mport=20000-30000&insecure=1#Hysteria2Hop",
-        "tuic://$uuid:secret@t.example.com:443?congestion_control=bbr&alpn=h3#TUIC"
+        "tuic://$uuid:secret@t.example.com:443?congestion_control=bbr&alpn=h3#TUIC",
+        "wireguard://${b64("0123456789abcdef0123456789abcdef")}@1.2.3.4:51820?publickey=${b64("0123456789abcdef0123456789abcdef")}&address=10.0.0.2/32&reserved=1,2,3&mtu=1408#WireGuard"
     )
 
     private val routings = listOf(
@@ -58,7 +59,7 @@ class SingBoxCheckTest {
         for (link in links) {
             for (routing in routings) {
                 for (settings in listOf(Settings(), Settings(ipv6 = true, dns = RemoteDns.QUAD9))) {
-                    val config = SingBoxConfig.build(LinkParser.toOutbound(link), routing, settings, context.packageName)
+                    val config = SingBoxConfig.build(LinkParser.toProxy(link), routing, settings, context.packageName)
                     try {
                         Libbox.checkConfig(config)
                     } catch (e: Exception) {

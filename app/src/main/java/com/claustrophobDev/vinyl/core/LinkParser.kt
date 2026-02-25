@@ -34,8 +34,13 @@ class ParsedLink(
     val host: String,
     val port: Int,
     val outbound: JSONObject?,
-    val unsupported: String?
+    val unsupported: String?,
+    // wireguard в sing-box 1.14 это endpoint, а не обычный outbound, кладется в другую секцию конфига
+    val isEndpoint: Boolean = false
 )
+
+// готовый прокси для конфига: json и в какую секцию его класть
+class Proxy(val json: JSONObject, val isEndpoint: Boolean)
 
 // ссылки vless/vmess/trojan/ss/hy2/tuic -> outbound для sing-box
 object LinkParser {
@@ -67,19 +72,18 @@ object LinkParser {
             Protocol.SHADOWSOCKS -> shadowsocks(s)
             Protocol.HYSTERIA2 -> hysteria2(s)
             Protocol.TUIC -> tuic(s)
-            Protocol.WIREGUARD -> {
-                // TODO wireguard
-                val u = ProxyUri.parse(s)
-                ParsedLink(Protocol.WIREGUARD, u.name, u.host, u.port, null, "WireGuard пока не поддерживается")
-            }
+            Protocol.WIREGUARD -> wireguard(s)
             null -> throw LinkException("Неизвестный тип ссылки")
         }
     }
 
-    fun toOutbound(link: String): JSONObject {
+    fun toProxy(link: String): Proxy {
         val p = parse(link)
-        return p.outbound ?: throw NotSupportedException(p.unsupported ?: "Сервер не поддерживается")
+        val json = p.outbound ?: throw NotSupportedException(p.unsupported ?: "Сервер не поддерживается")
+        return Proxy(json, p.isEndpoint)
     }
+
+    fun toOutbound(link: String): JSONObject = toProxy(link).json
 
     fun toServer(link: String, subId: String?): Server? {
         val p = try {
@@ -115,11 +119,11 @@ object LinkParser {
     }
 
     // если внутри кинули NotSupportedException, сервер все равно показываем но серым
-    private inline fun make(protocol: Protocol, name: String, host: String, port: Int, build: () -> JSONObject): ParsedLink {
+    private inline fun make(protocol: Protocol, name: String, host: String, port: Int, endpoint: Boolean = false, build: () -> JSONObject): ParsedLink {
         return try {
-            ParsedLink(protocol, name, host, port, build(), null)
+            ParsedLink(protocol, name, host, port, build(), null, endpoint)
         } catch (e: NotSupportedException) {
-            ParsedLink(protocol, name, host, port, null, e.message)
+            ParsedLink(protocol, name, host, port, null, e.message, endpoint)
         }
     }
 
@@ -296,6 +300,54 @@ object LinkParser {
             out.put("tls", quicTls(u, u.host, "h3"))
             out
         }
+    }
+
+    // формат wireguard://<приватный ключ>@<хост>:<порт>?publickey=..&address=..&reserved=.. (как в hiddify и панелях)
+    private fun wireguard(link: String): ParsedLink {
+        val u = ProxyUri.parse(link)
+        checkAddress(u.host, u.port)
+        val privateKey = Utils.urlDecode(u.userInfo).trim()
+        if (privateKey.isEmpty()) throw LinkException("В ссылке нет приватного ключа")
+        val publicKey = u.q("publickey", "public_key", "peerpublickey", "pubkey")
+            ?: throw LinkException("В ссылке нет публичного ключа пира")
+        val addresses = u.q("address", "ip", "addresses")
+            ?.split(',')?.map { it.trim() }?.filter { it.isNotEmpty() }
+            ?: throw LinkException("В ссылке нет адреса интерфейса")
+
+        return make(Protocol.WIREGUARD, u.name, u.host, u.port, endpoint = true) {
+            val peer = JSONObject()
+                .put("address", u.host)
+                .put("port", u.port)
+                .put("public_key", publicKey)
+                .put("allowed_ips", JSONArray().put("0.0.0.0/0").put("::/0"))
+            u.q("presharedkey", "pre_shared_key", "psk")?.let { peer.put("pre_shared_key", it) }
+            reserved(u.q("reserved"))?.let { peer.put("reserved", it) }
+            u.q("keepalive", "persistent_keepalive")?.toIntOrNull()?.let { peer.put("persistent_keepalive_interval", it) }
+
+            JSONObject()
+                .put("type", "wireguard")
+                .put("tag", PROXY_TAG)
+                .put("mtu", u.q("mtu")?.toIntOrNull() ?: 1408)
+                .put("address", JSONArray(addresses))
+                .put("private_key", privateKey)
+                .put("peers", JSONArray().put(peer))
+        }
+    }
+
+    // reserved бывает как "1,2,3" или как base64 из 3 байт
+    private fun reserved(value: String?): JSONArray? {
+        if (value.isNullOrEmpty()) return null
+        val nums = value.split(',').mapNotNull { it.trim().toIntOrNull() }
+        if (nums.size == 3) return JSONArray(nums)
+        val bytes = try {
+            java.util.Base64.getDecoder().decode(value.trim())
+        } catch (e: Exception) {
+            null
+        }
+        if (bytes != null && bytes.size == 3) {
+            return JSONArray(listOf(bytes[0].toInt() and 0xff, bytes[1].toInt() and 0xff, bytes[2].toInt() and 0xff))
+        }
+        return null
     }
 
     private fun quicTls(p: Params, host: String, defaultAlpn: String?): JSONObject {

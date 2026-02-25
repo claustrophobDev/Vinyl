@@ -1,7 +1,17 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
 }
+
+// ключ для релиза лежит в keystore.properties (в гит не коммитим)
+// если файла нет (например свежий клон), подписываем debug ключом чтобы все равно собиралось
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
+}
+val hasKeystore = keystoreProps.containsKey("storeFile")
 
 android {
     namespace = "com.claustrophobDev.vinyl"
@@ -24,12 +34,22 @@ android {
         }
     }
 
+    signingConfigs {
+        if (hasKeystore) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
             // с r8 compose заметно быстрее чем в debug
             isMinifyEnabled = true
-            // пока подписываю debug ключом
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasKeystore) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             optimization {
                 enable = true
             }
@@ -41,6 +61,11 @@ android {
     }
     buildFeatures {
         compose = true
+    }
+    lint {
+        // сканер qr тащит за собой старый androidx.fragment, а lint из за этого ругается на
+        // registerForActivityResult. фрагменты мы не используем вообще, тут чистый compose, так что не актуально
+        disable += "InvalidFragmentVersionForActivityResult"
     }
     packaging {
         jniLibs {
@@ -63,6 +88,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.singbox.libbox)
+    // системный сканер qr от google, сам открывает камеру, свой ui и разрешения не нужны
+    implementation(libs.play.services.code.scanner)
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20231013")

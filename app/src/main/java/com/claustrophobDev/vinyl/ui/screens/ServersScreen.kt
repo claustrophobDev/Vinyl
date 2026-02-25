@@ -34,6 +34,7 @@ import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Speed
@@ -85,6 +86,9 @@ import com.claustrophobDev.vinyl.ui.formatBytes
 import com.claustrophobDev.vinyl.ui.formatDate
 import com.claustrophobDev.vinyl.ui.serversWord
 import com.claustrophobDev.vinyl.ui.theme.VinylColors
+import com.google.mlkit.vision.barcode.common.Barcode
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import kotlinx.coroutines.launch
 
 private class Group(val key: String, val sub: Subscription?, val servers: List<Server>)
@@ -495,6 +499,22 @@ fun AddSheet(vm: MainViewModel, onDismiss: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
     }
 
+    // сканер от google play services, сам открывает камеру и свой ui
+    fun scanQr() {
+        val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
+        GmsBarcodeScanning.getClient(context, options).startScan()
+            .addOnSuccessListener { code ->
+                val value = code.rawValue
+                if (value.isNullOrBlank()) {
+                    vm.message("В QR-коде ничего нет")
+                } else {
+                    vm.addFromText(value)
+                    close()
+                }
+            }
+            .addOnFailureListener { vm.message("Не удалось открыть сканер") }
+    }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
@@ -520,6 +540,13 @@ fun AddSheet(vm: MainViewModel, onDismiss: () -> Unit) {
                 onClick = { if (pasteFromClipboard(context, vm)) close() },
                 modifier = Modifier.fillMaxWidth(),
                 icon = Icons.Rounded.ContentPaste
+            )
+            Spacer(Modifier.height(10.dp))
+            SecondaryButton(
+                "Сканировать QR",
+                onClick = { scanQr() },
+                modifier = Modifier.fillMaxWidth(),
+                icon = Icons.Rounded.QrCodeScanner
             )
             Spacer(Modifier.height(14.dp))
 
