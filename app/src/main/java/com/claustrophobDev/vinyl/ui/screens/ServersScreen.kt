@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
@@ -86,9 +87,8 @@ import com.claustrophobDev.vinyl.ui.formatBytes
 import com.claustrophobDev.vinyl.ui.formatDate
 import com.claustrophobDev.vinyl.ui.serversWord
 import com.claustrophobDev.vinyl.ui.theme.VinylColors
-import com.google.mlkit.vision.barcode.common.Barcode
-import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import kotlinx.coroutines.launch
 
 private class Group(val key: String, val sub: Subscription?, val servers: List<Server>)
@@ -499,20 +499,25 @@ fun AddSheet(vm: MainViewModel, onDismiss: () -> Unit) {
         scope.launch { sheetState.hide() }.invokeOnCompletion { onDismiss() }
     }
 
-    // сканер от google play services, сам открывает камеру и свой ui
+    // сканер открывается своей активити и возвращает результат сюда
+    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
+        val value = result.contents
+        if (value.isNullOrBlank()) {
+            // null значит юзер нажал назад, ничего не показываем
+            if (result.contents == "") vm.message("В QR-коде ничего нет")
+        } else {
+            vm.addFromText(value)
+            close()
+        }
+    }
+
     fun scanQr() {
-        val options = GmsBarcodeScannerOptions.Builder().setBarcodeFormats(Barcode.FORMAT_QR_CODE).build()
-        GmsBarcodeScanning.getClient(context, options).startScan()
-            .addOnSuccessListener { code ->
-                val value = code.rawValue
-                if (value.isNullOrBlank()) {
-                    vm.message("В QR-коде ничего нет")
-                } else {
-                    vm.addFromText(value)
-                    close()
-                }
-            }
-            .addOnFailureListener { vm.message("Не удалось открыть сканер") }
+        val options = ScanOptions()
+            .setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            .setBeepEnabled(false)
+            .setOrientationLocked(false)
+            .setPrompt("Наведите камеру на QR-код")
+        scanLauncher.launch(options)
     }
 
     ModalBottomSheet(

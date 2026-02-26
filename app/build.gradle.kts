@@ -63,8 +63,7 @@ android {
         compose = true
     }
     lint {
-        // сканер qr тащит за собой старый androidx.fragment, а lint из за этого ругается на
-        // registerForActivityResult. фрагменты мы не используем вообще, тут чистый compose, так что не актуально
+        // фрагменты мы не используем, тут чистый compose, так что эта проверка не актуальна
         disable += "InvalidFragmentVersionForActivityResult"
     }
     packaging {
@@ -88,8 +87,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.singbox.libbox)
-    // системный сканер qr от google, сам открывает камеру, свой ui и разрешения не нужны
-    implementation(libs.play.services.code.scanner)
+    // сканер qr, приносит свою камеру и активити, разрешение на камеру просит сам
+    implementation(libs.zxing.android.embedded)
 
     testImplementation(libs.junit)
     testImplementation("org.json:json:20231013")
